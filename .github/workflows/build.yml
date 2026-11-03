@@ -1,0 +1,28 @@
+name: Build GeekDesk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: microsoft/setup-msbuild@v2
+      - uses: nuget/setup-nuget@v2
+      - name: Restore NuGet packages
+        run: nuget restore GeekDesk.sln
+      - name: Build (Release)
+        run: msbuild GeekDesk.sln /p:Configuration=Release /p:Platform="Any CPU" /m
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: GeekDesk-Release
+          path: GeekDesk/bin/Release/
+          if-no-files-found: error
