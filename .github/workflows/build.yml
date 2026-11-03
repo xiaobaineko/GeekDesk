@@ -2,27 +2,66 @@ name: Build GeekDesk
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（发布 Release 时使用，如 2.6.2.2）'
+        required: false
+        default: '2.6.2.2'
+      publish:
+        description: '同时发布 Release'
+        type: boolean
+        required: false
+        default: false
   push:
-    branches: [master]
+    branches: [ master ]
     paths:
       - '.github/workflows/build.yml'
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: microsoft/setup-msbuild@v2
-      - uses: nuget/setup-nuget@v2
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
       - name: Restore NuGet packages
         run: nuget restore GeekDesk.sln
+
       - name: Build (Release)
         run: msbuild GeekDesk.sln /p:Configuration=Release /p:Platform="Any CPU" /m
+
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: GeekDesk-Release
           path: bin/Release/
           if-no-files-found: error
+
+      - name: Package release zip
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          Compress-Archive -Path "bin/Release/*" -DestinationPath "GeekDesk-Release-$version.zip" -Force
+          Get-Item "GeekDesk-Release-$version.zip" | Select-Object Name, Length
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ inputs.version }}"
+          $tag = "v$version"
+          gh release create $tag "GeekDesk-Release-$version.zip" --title "GeekDesk $version（RDP 修复版）" --notes-file RELEASE-NOTES.md --target master
