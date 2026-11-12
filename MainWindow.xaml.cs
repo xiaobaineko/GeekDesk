@@ -53,6 +53,9 @@ namespace GeekDesk
        
 
         private static bool dataFileExist = true;
+
+        /// <summary>托盘图标（自研实现，替代 HandyControl 的 hc:NotifyIcon）</summary>
+        private TrayIcon trayIcon;
         public MainWindow()
         {
             
@@ -407,8 +410,8 @@ namespace GeekDesk
             {
                 ShowApp();
             }
-            //给任务栏图标一个名字
-            BarIcon.Text = Constants.MY_NAME;
+            // 创建托盘图标（自研实现，见 Util/TrayIcon.cs）
+            InitTrayIcon();
 
             //注册热键
             if (true == appData.AppConfig.EnableAppHotKey)
@@ -830,10 +833,18 @@ namespace GeekDesk
         /// <param name="e"></param>
         private void NotifyIcon_Click(object sender, RoutedEventArgs e)
         {
-            // 直接使用 Visibility 判断，不依赖 WindowIsTop()。
-            // 原因：WindowIsTop() 在 RDP 切换后可能误判（GetForegroundWindow 返回 Progman），
-            // 导致 CheckShouldShowApp() 错误返回 false，第二次点击时调用 HideApp() 而不是 ShowApp()。
-            if (mainWindow.Visibility == Visibility.Collapsed || mainWindow.Visibility ==  Visibility.Hidden
+            ToggleTrayPanel();
+        }
+
+        /// <summary>
+        /// 托盘图标单击：切换面板显示/隐藏。
+        /// 直接使用 Visibility 判断，不依赖 WindowIsTop()。
+        /// 原因：WindowIsTop() 在 RDP 切换后可能误判（GetForegroundWindow 返回 Progman），
+        /// 导致 CheckShouldShowApp() 错误返回 false，第二次点击时调用 HideApp() 而不是 ShowApp()。
+        /// </summary>
+        private void ToggleTrayPanel()
+        {
+            if (mainWindow.Visibility == Visibility.Collapsed || mainWindow.Visibility == Visibility.Hidden
                 || mainWindow.Opacity == 0
                 || MarginHide.IS_HIDE)
             {
@@ -843,6 +854,78 @@ namespace GeekDesk
             {
                 HideApp();
             }
+        }
+
+        /// <summary>
+        /// 初始化托盘图标。整个进程只创建一个实例（TrayIcon 内部固定了消息窗口与 uID），
+        /// 从根上避免 RemoteApp 断开重连后出现重复图标。
+        /// </summary>
+        private void InitTrayIcon()
+        {
+            if (trayIcon != null)
+            {
+                return;
+            }
+            trayIcon = new TrayIcon(Constants.MY_NAME);
+            trayIcon.Click += (sender, e) => ToggleTrayPanel();
+            trayIcon.RightClick += (sender, e) => ShowTaskbarContextMenu();
+            ApplyTrayIconVisible(appData.AppConfig.ShowBarIcon);
+            appData.AppConfig.PropertyChanged += AppConfig_PropertyChanged;
+        }
+
+        private void AppConfig_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "ShowBarIcon")
+            {
+                ApplyTrayIconVisible(appData.AppConfig.ShowBarIcon);
+            }
+        }
+
+        private void ApplyTrayIconVisible(bool visible)
+        {
+            if (trayIcon == null)
+            {
+                return;
+            }
+            trayIcon.SetVisible(visible);
+        }
+
+        /// <summary>
+        /// 托盘右键菜单：与面板右上角复用同一个 TaskbarContextMenu。
+        /// RDP RemoteApp 下托盘图标在客户端，服务端的鼠标位置并不在图标上，
+        /// 因此按 MousePoint 弹出（与原本 hc:NotifyIcon 的行为一致）。
+        /// </summary>
+        private void ShowTaskbarContextMenu()
+        {
+            ContextMenu menu = this.TryFindResource("TaskbarContextMenu") as ContextMenu;
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return;
+            }
+            menu.Opened -= ContextMenu_Opened;
+            menu.Opened += ContextMenu_Opened;
+            menu.PlacementTarget = this;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            menu.IsOpen = true;
+        }
+
+        private void ContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            ContextMenu menu = sender as ContextMenu;
+            if (menu == null)
+            {
+                return;
+            }
+            menu.Opened -= ContextMenu_Opened;
+            try
+            {
+                HwndSource source = PresentationSource.FromVisual(menu) as HwndSource;
+                if (source != null)
+                {
+                    TrayIcon.BringToForeground(source.Handle);
+                }
+            }
+            catch { }
         }
 
         private static bool CheckShouldShowApp()
@@ -972,6 +1055,12 @@ namespace GeekDesk
             if (appData.AppConfig.EnableQuickSwitch)
             {
                 QuickSwitchThread.Dispose();
+            }
+            //退出前先摘掉托盘图标，避免 shell 里残留孤儿图标
+            if (trayIcon != null)
+            {
+                trayIcon.Dispose();
+                trayIcon = null;
             }
             Application.Current.Shutdown();
         }

@@ -292,13 +292,6 @@
                     </TextBox>
 
 
-                    <hc:NotifyIcon Icon="/Logo.ico" Click="NotifyIcon_Click" x:Name="BarIcon"
-                            Visibility="{Binding AppConfig.ShowBarIcon, Mode=TwoWay, Converter={StaticResource Boolean2VisibilityConverter}}">
-                        <hc:NotifyIcon.ContextMenu>
-                            <StaticResource ResourceKey="TaskbarContextMenu"/>
-                        </hc:NotifyIcon.ContextMenu>
-                    </hc:NotifyIcon>
-
                     <uc:RightCardControl x:Name="RightCard" Grid.Row="1" Grid.Column="1"/>
 
 

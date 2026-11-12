@@ -59,7 +59,11 @@ namespace GeekDesk
                 case PowerModes.Resume:
                     // 系统从休眠状态唤醒
                     LogUtil.WriteLog("System resumed from sleep.");
-                    ProcessUtil.ReStartApp();
+                    // SystemEvents 的回调发生在它自己的后台线程上，
+                    // 而 ReStartApp() 里的 Application.Current.Shutdown() 必须在 UI 线程执行
+                    // （否则会抛 InvalidOperationException 直接杀进程，连托盘图标的 NIM_DELETE 都来不及走）。
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(
+                        new Action(() => ProcessUtil.ReStartApp()));
                     break;
                 case PowerModes.Suspend:
                     // 系统进入休眠状态

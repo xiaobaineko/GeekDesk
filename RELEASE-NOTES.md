@@ -1,8 +1,15 @@
-## GeekDesk — 远程桌面（RDP / RemoteApp）修复版
+﻿## GeekDesk — 远程桌面（RDP / RemoteApp）修复版
 
 这是 GeekDesk 的非官方 fork 构建，基于 [BookerLiu/GeekDesk](https://github.com/BookerLiu/GeekDesk) 上游源码与 [Baker9017/GeekDesk](https://github.com/Baker9017/GeekDesk) 的修复提交，由 GitHub Actions 自动编译。原项目为 Apache-2.0 许可证，本仓库保留其许可证与版权声明。
 
-### 修复内容
+### 2.6.2.3 修复内容
+
+- 修复远程桌面（RDP / RemoteApp）断开重连后托盘区出现多个 GeekDesk 图标的问题（每重连一次多一个，重启软件才恢复）
+- 根因是 HandyControl 3.5.1 的 `NotifyIcon` 记账缺陷：每次控件 Loaded 都会新建一个消息窗口，而内部的 `_added` 只用一个布尔值记录注册状态，`Shell_NotifyIcon` 的返回值也不检查；RemoteApp 重连会重复触发 Loaded 与 TaskbarCreated，导致旧的托盘注册没被删除、新的又加上去，新旧图标还都能点击
+- 托盘图标改为自研实现（`Util/TrayIcon.cs`）：全进程只有一个消息窗口、一个固定 uID，增删都会检查返回值，任务栏重建时只对同一 (hWnd, uID) 重新添加
+- 顺带修复：系统从休眠唤醒时会调用 `Application.Current.Shutdown()`，但该回调运行在 SystemEvents 的后台线程上，会抛异常直接杀进程（托盘图标来不及注销）；现在改投递到 UI 线程执行
+
+### 早前版本修复内容
 
 - 修复远程桌面（RDP / RemoteApp）环境下使用一段时间后，托盘图标点不开主面板、必须重启软件的问题（对应上游 issue #149、#187 等）
 - 修复面板被隐藏后需要多次点击托盘图标才能打开的问题
@@ -10,7 +17,7 @@
 
 ### 其他变化（相对上游 2.5.15）
 
-- 目标框架升级到 .NET Framework 4.8，版本 2.6.2.2
+- 目标框架升级到 .NET Framework 4.8，版本 2.6.2.3
 - 新增 Listary 风格的 Quick Switch 文件夹跟随功能（默认关闭，可在设置中开启）
 - 屏幕右上角右键打开托盘同款菜单
 - 已禁用自动更新检查（本 fork 版本号与上游不一致，避免被上游更新提示干扰）

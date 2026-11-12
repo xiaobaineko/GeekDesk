@@ -337,6 +337,7 @@
     <Compile Include="Util\RegisterUtil.cs" />
     <Compile Include="Util\RelayCommand.cs" />
     <Compile Include="Util\ScreenUtil.cs" />
+    <Compile Include="Util\TrayIcon.cs" />
     <Compile Include="Util\ScrollUtil.cs" />
     <Compile Include="Util\ShellContextMenu.cs" />
     <Compile Include="Util\ShowWindowFollowMouse.cs" />
